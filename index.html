@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+<title>wall</title>
+<style>
+*, *:before, *:after {
+	box-sizing: border-box;
+}
+
+html, body {
+	font-family: arial;
+	padding: 0;
+	margin: 0;
+	height: 100%;
+}
+.canvas-container {
+	height: 80%;
+	position: relative;
+}
+
+canvas {
+	user-select: none;
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+}
+
+#draw-canvas {
+	z-index: 1;
+}
+
+#wall-canvas {
+	z-index: 0;
+}
+
+.footer {
+	border-top: 2px solid dodgerblue;
+	padding: 10px;
+}
+
+.color-picker {
+	float: right;
+}
+
+button {
+	font-size: 15px;
+	padding: 10px;
+}
+
+input {
+	vertical-align: top;
+	font-size: 28px;
+	padding: 3px;
+	width: 130px;
+	font-family: monospace;
+}
+</style>
+</head>
+<body>
+	<div class="canvas-container">
+		<canvas id="draw-canvas" width="2000" height="1000"></canvas>
+		<canvas id="wall-canvas" width="2000" height="1000"></canvas>
+	</div>
+	<div class="footer">
+		<button id="send-button">Send</button>
+
+		<div class="color-picker">
+			<input type="text" value="#ffffff" id="color-value">
+			<button id="color-button">Pick</button>
+		</div>
+	</p>
+
+<script type="text/javascript">
+var wall = {
+	isDrawing: false,
+	drawCanvas: null,
+	drawContext: null,
+	wallCanvas: null,
+	wallContext: null,
+
+	saveSocket: null,
+	sendButton: null,
+	colorButton: null,
+	dimensions: {width: null, height: null} // computed size info
+};
+
+function canvasClickHandler(e) {
+	var wasDrawing = wall.isDrawing;
+	wall.isDrawing = e.type === 'mousedown';
+
+	if (wall.isDrawing && !wasDrawing) {
+		wall.drawContext.beginPath();
+	} else if (!wall.isDrawing && wasDrawing) {
+		wall.drawContext.closePath();
+	}
+}
+
+function dataUrlCursor(color) {
+	var cursor = document.createElement('canvas');
+	var ctx = cursor.getContext('2d');
+
+	cursor.width = 16;
+	cursor.height = 16;
+	ctx.strokeStyle = color;
+	ctx.arc(8, 8, 4, 0, Math.PI*2, true);
+	ctx.lineWidth = 8;
+	ctx.lineCap = 'round';
+	ctx.stroke();
+
+	return cursor.toDataURL();
+}
+
+function canvasOffset(clientX, clientY) {
+	var offsetTop = wall.drawCanvas.offsetTop;
+	var offsetLeft = wall.drawCanvas.offsetLeft;
+	var top = clientY - offsetTop + 8; // cursor offsets
+	var left = clientX - offsetLeft + 4;
+
+	var coords = {
+		x: 2000 / wall.dimensions.width * left,
+		y: 1000 / wall.dimensions.height * top
+	};
+
+	return coords;
+}
+
+function canvasMoveHandler(e) {
+	if (!wall.isDrawing) return;
+
+	var coords = canvasOffset(e.x, e.y);
+	wall.drawContext.lineTo(coords.x, coords.y);
+	wall.drawContext.stroke();
+}
+
+function setStyle(style) {
+	wall.drawContext.strokeStyle = style.color || 'black';
+	wall.drawContext.lineWidth = style.width || 14;
+
+	wall.drawCanvas.style.cursor = 'url(' + dataUrlCursor(style.color || 'black') + '), auto';
+}
+
+function messageHandler(e) {
+	var reader = new FileReader();
+	reader.addEventListener('loadend', function() {
+		var data = JSON.parse(reader.result);
+		var image = new Image();
+		image.src = data.image;
+		image.onload = function() {
+			wall.wallContext.drawImage(image, 0, 0);
+		};
+		console.log('received', data);
+	});
+	reader.readAsText(e.data);
+}
+
+function colorClickHandler(e) {
+	var input = document.getElementById('color-value');
+	setStyle({color: input.value});
+}
+
+function sendClickHandler(e) {
+	var request = {
+		image: wall.drawCanvas.toDataURL(),
+		user: 'svend'
+	};
+	wall.saveSocket.send(JSON.stringify(request));
+	wall.drawContext.clearRect(0, 0, 2000, 1000);
+}
+
+wall.sendButton = document.getElementById('send-button');
+wall.colorButton = document.getElementById('color-button');
+wall.drawCanvas = document.getElementById('draw-canvas');
+wall.wallCanvas = document.getElementById('wall-canvas');
+
+wall.drawContext = wall.drawCanvas.getContext('2d');
+wall.wallContext = wall.wallCanvas.getContext('2d');
+
+wall.saveSocket = new WebSocket('ws://localhost:8080/save');
+wall.loadSocket = new WebSocket('ws://localhost:8080/load');
+
+wall.drawCanvas.addEventListener('mousedown', canvasClickHandler);
+wall.drawCanvas.addEventListener('mouseup', canvasClickHandler);
+wall.drawCanvas.addEventListener('mousemove', canvasMoveHandler);
+
+var canvasStyles = getComputedStyle(wall.drawCanvas);
+wall.dimensions.width = parseInt(canvasStyles.width.substring(0, canvasStyles.width.length-2), 10);
+wall.dimensions.height = parseInt(canvasStyles.height.substring(0, canvasStyles.height.length-2), 10);
+
+wall.sendButton.addEventListener('click', sendClickHandler);
+wall.colorButton.addEventListener('click', colorClickHandler);
+
+wall.loadSocket.onmessage = messageHandler;
+
+setStyle({color: 'black'});
+</script>
+</body>
+</html>
