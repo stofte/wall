@@ -34,14 +34,15 @@ html, body {
 
 #color-canvas {
 	border: 2px solid dodgerblue;
+	background-color: white;
 	box-shadow: 2px 2px 15px 3px #999;
 	border-right: none;
 	z-index: 2;
 	position: absolute;
 	bottom: -2px; /* border adjust */
 	right: 0;
-	width: 340px;
-	height: 300px;
+	width: 600px;
+	height: 600px;
 	user-select: none;
 }
 
@@ -85,7 +86,7 @@ input {
 	<div class="canvas-container">
 		<canvas id="draw-canvas" width="2000" height="1000"></canvas>
 		<canvas id="wall-canvas" width="2000" height="1000"></canvas>
-		<canvas id="color-canvas" width="1023" height="837" class="hidden"></canvas>
+		<canvas id="color-canvas" width="1000" height="1000" class="hidden"></canvas>
 	</div>
 	<div class="footer">
 		<button id="send-button">Send</button>
@@ -119,7 +120,8 @@ var wall = {
 	saveSocket: null,
 	sendButton: null,
 	colorButton: null,
-	drawDimensions: {width: null, height: null} // computed size info
+	drawDimensions: {width: null, height: null}, // computed size info
+	colorDimensions: {width: null, height: null}
 };
 
 function canvasClickHandler(e) {
@@ -169,8 +171,8 @@ function colorOffset(clientX, clientY) {
 	var left = clientX - offsetLeft;
 
 	var coords = {
-		x: 1023 / wall.dimensions.width * left,
-		y: 837 / wall.dimensions.height * top
+		x: 1000 / wall.colorDimensions.width * left,
+		y: 1000 / wall.colorDimensions.height * top
 	};
 
 	return coords;
@@ -206,8 +208,18 @@ function messageHandler(e) {
 }
 
 function colorClickHandler(e) {
-
-	// wall.colorContext.
+	var coords = colorOffset(e.x, e.y);
+	// returns 2x2 rectangle, so grab first pixel color, and ignore rest
+	var data = wall.colorContext.getImageData(coords.x, coords.y, 1, 1).data;
+	var r = data[0].toString(16);
+	var g = data[1].toString(16);
+	var b = data[2].toString(16);
+	var hex = '#' + (r.length === 1?'0':'') + r + (g.length === 1 ? '0' : '') + g + (b.length === 1 ? '0' : '') + b;
+	console.log('colorClickHandler', hex);
+	var input = document.getElementById('color-value');
+	input.value = hex;
+	setStyle({color: hex});
+	wall.colorCanvas.classList.toggle('hidden', true);
 }
 
 function colorButtonClickHandler(e) {
@@ -243,20 +255,25 @@ wall.drawCanvas.addEventListener('mouseup', canvasClickHandler);
 wall.drawCanvas.addEventListener('mousemove', canvasMoveHandler);
 
 var canvasStyles = getComputedStyle(wall.drawCanvas);
+var colorStyles = getComputedStyle(wall.colorCanvas);
 wall.drawDimensions.width = parseInt(canvasStyles.width.substring(0, canvasStyles.width.length-2), 10);
 wall.drawDimensions.height = parseInt(canvasStyles.height.substring(0, canvasStyles.height.length-2), 10);
 
+wall.colorDimensions.width = parseInt(colorStyles.width.substring(0, colorStyles.width.length-2), 10);
+wall.colorDimensions.height = parseInt(colorStyles.height.substring(0, colorStyles.height.length-2), 10);
+
 wall.sendButton.addEventListener('click', sendClickHandler);
 wall.colorButton.addEventListener('click', colorButtonClickHandler);
+wall.colorCanvas.addEventListener('mousedown', colorClickHandler);
 
 
 wall.loadSocket.onmessage = messageHandler;
 
 var colorChart = new Image();
 colorChart.onload = function() {
-	wall.colorContext.drawImage(colorChart, 0, 0);
+	wall.colorContext.drawImage(colorChart, 0, 0, 2863, 2574, 0, 0, 1000, 1000);
 };
-colorChart.src = 'colors.png';
+colorChart.src = 'unicorn.png';
 
 
 setStyle({color: 'black'});
