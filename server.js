@@ -8,12 +8,6 @@ if (!fs.existsSync('walldata')) {
 	fs.mkdirSync('walldata');
 }
 
-http.createServer(function (req, res) {
-	var index = fs.readFileSync('index.html');
-	res.writeHead(200, {'Content-Type': 'html'});
-	res.end(index);
-}).listen(80);
-
 function persistFile(data) {
 	var date = new Date();
 	var needzs = 5 - (''+count).length;
@@ -34,17 +28,17 @@ function sendData(websocket, files) {
 	});
 }
 
-wss.on('connection', function(ws) {
-	console.log('websocket request on:', ws.upgradeReq.url);
-	if (ws.upgradeReq.url === '/save') {
-		ws.on('message', function(message) {
+wss.on('connection', function(websocket) {
+	console.log('websocket request on:', websocket.upgradeReq.url);
+	if (websocket.upgradeReq.url === '/save') {
+		websocket.on('message', function(message) {
 			persistFile(message);
 		});
 	}
 
-	if (ws.upgradeReq.url === '/load') {
+	if (websocket.upgradeReq.url === '/load') {
 		fs.readdir('walldata', function(err, files) {
-			sendData(ws, files);
+			sendData(websocket, files);
 		});
 		
 	}
